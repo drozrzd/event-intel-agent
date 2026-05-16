@@ -253,7 +253,7 @@ def fetch_event_hosts(raw_entries: list, max_per_event: int = 5) -> list:
                 "bio": sanitize(h.get("bio_short", "") or "", max_chars=MAX_BIO_CHARS),
                 "linkedin": linkedin_url,
                 "linkedin_source": "luma_profile" if linkedin_url else None,
-                "score": 0,
+                "score": 5,  # neutral default; scorer upgrades if profile has data
                 "signals": [f"Organizer of '{event_name}'"],
                 "event": event_name,
                 "is_speaker": False,

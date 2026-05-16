@@ -20,6 +20,7 @@ Score 1-3: agency owner, solo consultant, no technical product,
   non-technical role, Series B+ employee who is not a founder.
 
 Rules:
+- If title/company/bio are all empty, score 5 (unknown, not bad).
 - signals: exactly 2 phrases, max 40 characters each.
 - NEVER invent funding data not present in the input.
 - Return ONLY the JSON array, no other text."""
