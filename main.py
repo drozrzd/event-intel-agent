@@ -19,6 +19,7 @@ from scoring import score_attendees
 from eventbrite import fetch_eventbrite_events
 from discord_notifier import format_message, review_message, post_to_discord
 from cohorts import fetch_yc_founders
+from notion import save_contacts_to_notion
 
 DRY_RUN = os.environ.get("DRY_RUN", "false").lower() == "true"
 
@@ -136,6 +137,7 @@ def main():
         print("[REVIEW] APPROVED")
         if not DRY_RUN:
             post_to_discord(message)
+            save_contacts_to_notion(all_contacts)
         else:
             print(f"[DRY_RUN] Would post:\n{message}")
 
