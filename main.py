@@ -14,7 +14,7 @@ from luma import (
     fetch_event_hosts,
 )
 from venues import scrape_venue_speakers
-from enrichment import enrich_linkedin
+from enrichment import enrich_linkedin, enrich_funding
 from scoring import score_attendees
 from eventbrite import fetch_eventbrite_events
 from discord_notifier import format_message, review_message, post_to_discord
@@ -74,6 +74,7 @@ def main():
         # Only Google-search if no LinkedIn and has a real username to search for
         if not h.get("linkedin") and h.get("username") and captcha_count[0] < max_captcha:
             h = enrich_linkedin(h, config, captcha_count)
+        h = enrich_funding(h)
         key = make_contact_key(h.get("linkedin"), h.get("name", ""), h.get("company", ""))
         if not is_contact_seen(memory, key):
             attendees.append(h)
@@ -93,6 +94,7 @@ def main():
     for s in speakers:
         if captcha_count[0] < max_captcha:
             s = enrich_linkedin(s, config, captcha_count)
+        s = enrich_funding(s)
         key = make_contact_key(s.get("linkedin"), s.get("name", ""), s.get("company", ""))
         if not is_contact_seen(memory, key):
             all_contacts.append(s)
