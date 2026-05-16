@@ -212,6 +212,28 @@ def classify_events(event_list: list, call_groq=call_groq) -> list:
     return result
 
 
+_ORG_SUFFIXES = frozenset({
+    "inc", "llc", "lp", "lc", "ltd", "corp", "co", "sa", "plc",
+    "vc", "network", "labs", "lab", "club", "events", "capital",
+    "fund", "group", "foundation", "association", "collective",
+    "hub", "initiative", "studio", "studios", "agency", "ventures",
+    "partners",
+})
+
+
+def _is_org_name(name: str) -> bool:
+    """Return True if name looks like an org/company account, not a real person."""
+    stripped = name.strip()
+    if not stripped or " " not in stripped:
+        return True  # single word
+    if "(" in stripped:
+        return True  # "Amada (LangChain)" style
+    if not stripped[0].isalpha():
+        return True  # starts with emoji/symbol
+    last_word = stripped.lower().split()[-1].rstrip(".,")
+    return last_word in _ORG_SUFFIXES
+
+
 def fetch_event_hosts(raw_entries: list, max_per_event: int = 5) -> list:
     """Extract host/organizer profiles from already-fetched discover API entries.
 
@@ -235,12 +257,15 @@ def fetch_event_hosts(raw_entries: list, max_per_event: int = 5) -> list:
             if count >= max_per_event:
                 break
 
-            name = sanitize(h.get("name", ""), max_chars=MAX_NAME_CHARS)
+            raw_name = (h.get("name", "") or "").strip()
+            name = sanitize(raw_name, max_chars=MAX_NAME_CHARS)
             if not name or name == "[REDACTED]" or name in seen_names:
                 continue
-            # Skip org accounts — person names always have a space
-            if " " not in name.strip():
+            if _is_org_name(name):
                 continue
+            # Normalize capitalization for all-lowercase names from the API
+            if name == name.lower():
+                name = name.title()
 
             # Build LinkedIn URL from handle — skip company pages
             linkedin_handle = (h.get("linkedin_handle") or "").strip()

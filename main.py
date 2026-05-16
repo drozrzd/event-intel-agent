@@ -18,6 +18,7 @@ from enrichment import enrich_linkedin, enrich_funding
 from scoring import score_attendees
 from eventbrite import fetch_eventbrite_events
 from discord_notifier import format_message, review_message, post_to_discord
+from cohorts import fetch_yc_founders
 
 DRY_RUN = os.environ.get("DRY_RUN", "false").lower() == "true"
 
@@ -39,10 +40,21 @@ def main():
     captcha_count = [0]
     max_captcha = config.get("google_captcha_abort_threshold", 3)
 
-    # ── Pipeline A: Luma Event Hosts ─────────────────────────────────────────
-    # Luma guest lists are organizer-only (403 for non-organizers).
-    # We extract event hosts instead — organizers are high-signal founders/builders
-    # and their LinkedIn handles come pre-populated from the Luma profile API.
+    # ── YC Founders (highest signal — funded by definition) ──────────────────
+    yc_contacts = fetch_yc_founders(config)
+    yc_new = []
+    for c in yc_contacts:
+        key = make_contact_key(c.get("linkedin"), c.get("name", ""), c.get("company", ""))
+        if not is_contact_seen(memory, key):
+            yc_new.append(c)
+    # Cap YC independently so they don't crowd out local Luma contacts
+    yc_cap = config.get("max_yc_contacts", 15)
+    yc_new = yc_new[:yc_cap]
+    yc_new = [enrich_funding(c) for c in yc_new]
+    all_contacts.extend(yc_new)
+    print(f"[YC] {len(yc_new)} new YC founder contacts")
+
+    # ── Luma Event Hosts ──────────────────────────────────────────────────────
     luma_raw = fetch_luma_events(config)
     eb_raw = fetch_eventbrite_events(config)
 
@@ -57,7 +69,7 @@ def main():
 
     filtered_events = pre_filter(events, memory, config)
     filtered_events = classify_events(filtered_events)
-    print(f"[PIPELINE_A] {len(filtered_events)} qualifying events")
+    print(f"[LUMA] {len(filtered_events)} qualifying events")
 
     # Build lookup: api_id → raw entry (hosts are in raw entries, not normalized)
     raw_by_id = {e.get("event", {}).get("api_id", ""): e for e in luma_raw}
@@ -74,7 +86,6 @@ def main():
         # Only Google-search if no LinkedIn and has a real username to search for
         if not h.get("linkedin") and h.get("username") and captcha_count[0] < max_captcha:
             h = enrich_linkedin(h, config, captcha_count)
-        h = enrich_funding(h)
         key = make_contact_key(h.get("linkedin"), h.get("name", ""), h.get("company", ""))
         if not is_contact_seen(memory, key):
             attendees.append(h)
@@ -82,22 +93,23 @@ def main():
     for ev in filtered_events:
         mark_event_seen(memory, ev.get("url", ""))
 
-    # Score hosts in batch
+    # Score first, then funding — so funding signal prepends to scorer's signals
     attendees = score_attendees(attendees, call_groq)
+    attendees = [enrich_funding(a) for a in attendees]
     min_score = config.get("min_score_attendees", 6)
     attendees = [a for a in attendees if a.get("score", 0) >= min_score]
-    print(f"[PIPELINE_A] {len(attendees)} event hosts after score filter")
+    print(f"[LUMA] {len(attendees)} event hosts after score filter")
     all_contacts.extend(attendees)
 
-    # ── Pipeline B: Venue Speakers ────────────────────────────────────────────
+    # ── Venue Speakers ────────────────────────────────────────────────────────
     speakers = scrape_venue_speakers(config)
     for s in speakers:
         if captcha_count[0] < max_captcha:
             s = enrich_linkedin(s, config, captcha_count)
-        s = enrich_funding(s)
         key = make_contact_key(s.get("linkedin"), s.get("name", ""), s.get("company", ""))
         if not is_contact_seen(memory, key):
             all_contacts.append(s)
+    all_contacts = [enrich_funding(c) if c.get("is_speaker") else c for c in all_contacts]
 
     print(f"[PIPELINE_B] {len(speakers)} speakers found")
 
@@ -109,6 +121,8 @@ def main():
             save_memory(memory)
         return
 
+    # Sort by score descending before capping so best contacts always make the cut
+    all_contacts.sort(key=lambda c: c.get("score", 0), reverse=True)
     all_contacts = all_contacts[:config.get("max_contacts_per_run", 60)]
     message = format_message(all_contacts)
     print(f"[FORMAT] {len(message)} chars")

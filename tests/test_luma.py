@@ -89,9 +89,10 @@ def test_prefilter_drops_online():
     result = pre_filter([_make_event(location_type="online")], _memory(), _config())
     assert len(result) == 0
 
-def test_prefilter_drops_small_event():
-    result = pre_filter([_make_event(guest_count=5)], _memory(), _config())
-    assert len(result) == 0
+def test_prefilter_keeps_zero_guest_event():
+    # guest_count filter removed — approval-required events always show 0
+    result = pre_filter([_make_event(guest_count=0)], _memory(), _config())
+    assert len(result) == 1
 
 def test_prefilter_drops_lifestyle():
     result = pre_filter([_make_event(name="Saturday Yoga & Wellness")], _memory(), _config())
@@ -153,17 +154,26 @@ def test_fetch_hosts_basic():
     assert h["event"] == "AI Founders Hackathon"
     assert not h["is_speaker"]
 
-def test_fetch_hosts_skips_company_linkedin():
+def test_fetch_hosts_skips_org_accounts():
+    # Org names (ending with Corp, Inc, Network, etc.) are filtered out
+    for org_name in ["Acme Corp", "Tech Network", "Boston Events Inc"]:
+        entry = _make_raw_entry(hosts=[{
+            "name": org_name,
+            "username": None, "bio_short": None, "job_title": None,
+            "company": None, "linkedin_handle": "/in/someone", "twitter_handle": None,
+        }])
+        results = fetch_event_hosts([entry])
+        assert results == [], f"Expected {org_name} to be filtered as org account"
+
+def test_fetch_hosts_skips_company_linkedin_handle():
+    # Person name but company-style LinkedIn handle — person included, linkedin None
     entry = _make_raw_entry(hosts=[{
-        "name": "Acme Corp",
-        "username": None,
-        "bio_short": None,
-        "job_title": None,
-        "company": None,
-        "linkedin_handle": "/company/acme",
-        "twitter_handle": None,
+        "name": "Alice Brown",
+        "username": None, "bio_short": None, "job_title": None,
+        "company": None, "linkedin_handle": "/company/acme", "twitter_handle": None,
     }])
     results = fetch_event_hosts([entry])
+    assert len(results) == 1
     assert results[0]["linkedin"] is None
 
 def test_fetch_hosts_no_linkedin_handle():

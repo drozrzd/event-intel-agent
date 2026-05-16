@@ -112,7 +112,9 @@ def enrich_funding(contact: dict) -> dict:
         return contact
 
     funding = check_recent_funding(company)
-    if not funding:
+    if not funding or not funding.get("round"):
+        # Require a recognized round type (seed, series A/B, etc.) to avoid
+        # false positives from established companies raising debt or media rounds.
         return contact
 
     parts = []
