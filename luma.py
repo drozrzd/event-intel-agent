@@ -232,6 +232,9 @@ def fetch_event_hosts(raw_entries: list, max_per_event: int = 5) -> list:
             name = sanitize(h.get("name", ""), max_chars=MAX_NAME_CHARS)
             if not name or name == "[REDACTED]" or name in seen_names:
                 continue
+            # Skip org accounts — person names always have a space
+            if " " not in name.strip():
+                continue
 
             # Build LinkedIn URL from handle — skip company pages
             linkedin_handle = (h.get("linkedin_handle") or "").strip()

@@ -36,6 +36,9 @@ _NON_NAME_WORDS = {
     "Upcoming", "Recent", "View", "Read", "Sign", "More", "Both",
     # Social / event words
     "Pickleball", "Social", "Year", "Anniversary", "Summit", "Locations",
+    # Website navigation / UI elements
+    "Venue", "Event", "Information", "Navigation", "Sidebar", "Header",
+    "Footer", "Search", "Filter", "Category", "Featured", "Archive",
 }
 # Full phrase false positives
 _FALSE_POSITIVES = {
@@ -45,6 +48,17 @@ _FALSE_POSITIVES = {
     "United States", "Greater Boston", "North America", "South End",
     "Back Bay", "Kendall Square", "Featured Events", "Innovation Labs",
 }
+
+
+MAX_EVENT_LINKS_PER_VENUE = 5
+
+# Link text/URL patterns that indicate an individual event page (not nav/UI)
+_EVENT_LINK_PATTERN = re.compile(
+    r"(event|summit|conference|hackathon|demo|pitch|accelerator|cohort|meetup|forum)",
+    re.IGNORECASE,
+)
+# Paths to skip (pagination, tags, category pages, anchors)
+_SKIP_PATH_PATTERN = re.compile(r"[?#]|/tag/|/category/|/page/", re.IGNORECASE)
 
 
 def scrape_venue_speakers(config: dict) -> list:
@@ -63,20 +77,67 @@ def scrape_venue_speakers(config: dict) -> list:
 
 def _scrape_one_venue(venue_url: str) -> list:
     from playwright.sync_api import sync_playwright
+    from urllib.parse import urljoin, urlparse
+
+    base_domain = urlparse(venue_url).netloc
+
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
         try:
             page.goto(venue_url, timeout=20000)
             page.wait_for_load_state("domcontentloaded", timeout=15000)
-            html = page.content()
+            listing_html = page.content()
+
+            # Find event detail page links from the listing
+            event_links = _find_event_links(listing_html, venue_url, base_domain)
+
+            # Try the listing page itself first
+            speakers = _extract_speakers_from_html(listing_html, venue_url)
+
+            # Then follow event detail links
+            for link in event_links[:MAX_EVENT_LINKS_PER_VENUE]:
+                if len(speakers) >= MAX_SPEAKERS_PER_VENUE:
+                    break
+                try:
+                    page.goto(link, timeout=15000)
+                    page.wait_for_load_state("domcontentloaded", timeout=10000)
+                    detail_html = page.content()
+                    found = _extract_speakers_from_html(detail_html, venue_url)
+                    for s in found:
+                        if s["name"] not in {x["name"] for x in speakers}:
+                            speakers.append(s)
+                    if found:
+                        print(f"[VENUES]   +{len(found)} speakers from {link}")
+                except Exception:
+                    pass  # skip slow/broken detail pages silently
+
         except Exception as e:
             print(f"[VENUES] Playwright timeout on {venue_url}: {e}")
             return []
         finally:
             browser.close()
 
-    return _extract_speakers_from_html(html, venue_url)
+    return speakers[:MAX_SPEAKERS_PER_VENUE]
+
+
+def _find_event_links(html: str, base_url: str, base_domain: str) -> list:
+    from urllib.parse import urljoin, urlparse
+    soup = BeautifulSoup(html, "html.parser")
+    seen = set()
+    links = []
+    for a in soup.find_all("a", href=True):
+        href = a["href"].strip()
+        full = urljoin(base_url, href)
+        parsed = urlparse(full)
+        # Same domain only, no skip-patterns, looks like an event page
+        if (parsed.netloc == base_domain
+                and full not in seen
+                and not _SKIP_PATH_PATTERN.search(full)
+                and (_EVENT_LINK_PATTERN.search(full) or _EVENT_LINK_PATTERN.search(a.get_text()))):
+            seen.add(full)
+            links.append(full)
+    return links
 
 
 def _extract_speakers_from_html(html: str, source_url: str) -> list:

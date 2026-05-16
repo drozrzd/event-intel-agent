@@ -71,8 +71,8 @@ def main():
 
     attendees = []
     for h in hosts:
-        # LinkedIn already populated from Luma profile; skip Google if already found
-        if not h.get("linkedin") and captcha_count[0] < max_captcha:
+        # Only Google-search if no LinkedIn and has a real username to search for
+        if not h.get("linkedin") and h.get("username") and captcha_count[0] < max_captcha:
             h = enrich_linkedin(h, config, captcha_count)
         key = make_contact_key(h.get("linkedin"), h.get("name", ""), h.get("company", ""))
         if not is_contact_seen(memory, key):

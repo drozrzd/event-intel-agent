@@ -35,6 +35,7 @@ def score_attendees(attendees: list, call_groq_fn) -> list:
             "title": a.get("title", ""),
             "company": a.get("company", ""),
             "bio": a.get("bio", ""),
+            "context": " | ".join(a.get("signals", [])),
         }
         for i, a in enumerate(attendees)
     ]
