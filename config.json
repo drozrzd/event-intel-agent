@@ -4,7 +4,7 @@
   "geo_radius_km": 30,
   "window_days_attendees": 14,
   "window_days_speakers": 7,
-  "min_score_attendees": 4,
+  "min_score_attendees": 1,
   "max_attendees_per_event": 30,
   "max_contacts_per_run": 60,
   "google_search_delay_seconds": 10,
