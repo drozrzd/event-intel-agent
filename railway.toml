@@ -1,0 +1,10 @@
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "python main.py"
+healthcheckTimeout = 1200
+
+[[crons]]
+schedule = "0 11 * * *"
+command = "python main.py"
