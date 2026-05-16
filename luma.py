@@ -28,6 +28,13 @@ STARTUP_KEYWORDS = [
     "demo", "hackathon", "accelerator", "operator", "ai", "tech", "builder",
     "engineer", "product", "seed", "raise", "funding", "innovation",
     "incubator", "entrepreneur", "saas", "software",
+    # Hardware / deep tech verticals
+    "robotics", "defense", "deep tech", "deeptech", "biotech", "hardware",
+    "space", "aerospace", "satellite",
+    # Finance signals
+    "lp", "fund", "portfolio", "cohort", "showcase", "mixer",
+    # Extra ecosystem signals
+    "cto", "ceo", "coo", "executive", "dealflow", "deal flow",
 ]
 
 ALLOWED_URL_DOMAINS = ["lu.ma", "partiful.com", "tnt.so", "eventbrite.com"]
@@ -161,9 +168,8 @@ def pre_filter(event_list: list, memory: dict, config: dict) -> list:
         if event.get("location_type") == "online":
             continue
 
-        # Too small
-        if event.get("guest_count", 0) < 10:
-            continue
+        # Skip guest_count filter — approval-required events always show 0,
+        # and those are often the highest-signal (vetted attendees, invite-only)
 
         # Duplicate
         if is_event_seen(memory, event.get("url", "")):
