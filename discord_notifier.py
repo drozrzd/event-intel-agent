@@ -32,8 +32,8 @@ def format_message(contacts: list) -> str:
     from datetime import date
     today = date.today().strftime("%a %b %-d")
 
-    attendees = [c for c in contacts if not c.get("is_speaker")]
-    speakers = [c for c in contacts if c.get("is_speaker")]
+    attendees = [c for c in contacts if not c.get("is_speaker") and c.get("linkedin")]
+    speakers = [c for c in contacts if c.get("is_speaker") and c.get("linkedin")]
 
     lines = [f"📅 **Boston Founder Intel — {today}**\n"]
 
@@ -46,11 +46,7 @@ def format_message(contacts: list) -> str:
                 current_event = c.get("event", "")
                 if current_event:
                     lines.append(f"\n{current_event}")
-            li_line = (
-                f"  {c.get('linkedin', '')} ✅"
-                if c.get("linkedin")
-                else "  ⚠️ No LinkedIn found"
-            )
+            li_line = f"  {c.get('linkedin', '')} ✅"
             raw_signals = [s for s in c.get("signals", []) if s.lower().strip() not in ("unknown", "organizer", "n/a", "none", "")]
             signals = " · ".join(raw_signals)
             role = _role_str(c.get("title", ""), c.get("company", ""))
@@ -68,11 +64,7 @@ def format_message(contacts: list) -> str:
                 current_event = s.get("event", "")
                 if current_event:
                     lines.append(f"\n{current_event}")
-            li_line = (
-                f"  {s.get('linkedin', '')} ✅"
-                if s.get("linkedin")
-                else "  ⚠️ No LinkedIn found"
-            )
+            li_line = f"  {s.get('linkedin', '')} ✅"
             raw_signals = [sig for sig in s.get("signals", []) if sig.lower().strip() not in ("unknown", "organizer", "n/a", "none", "")]
             signals = " · ".join(raw_signals)
             role = _role_str(s.get("title", ""), s.get("company", ""))
@@ -81,13 +73,6 @@ def format_message(contacts: list) -> str:
             if signals:
                 lines.append(f"  {signals}")
 
-    confirmed = sum(1 for c in contacts if c.get("linkedin"))
-    missing = len(contacts) - confirmed
-    lines.append(
-        f"\n─────────────────────────────\n"
-        f"{len(contacts)} contacts · {confirmed} LinkedIn confirmed · {missing} missing\n"
-        f"Attendees: {len(attendees)} · Speakers: {len(speakers)}"
-    )
 
     return "\n".join(lines)
 
